@@ -54,9 +54,7 @@ module Sorcery
             @provider.process_callback(params,session)
             @user_hash = @provider.get_user_hash
             if user = user_class.load_from_provider(provider,@user_hash[:uid].to_s)
-              return_to_url = session[:return_to_url]
-              reset_session
-              session[:return_to_url] = return_to_url
+              session_strategy
               auto_login(user)
               after_login!(user)
               user
@@ -88,10 +86,8 @@ module Sorcery
             return user
           end
 
-          # Initialize new user from provider informations.
-          # If a provider doesn't give required informations or username/email is already taken,
-          # we store provider/user infos into a session and can be rendered into registration form
-          def create_and_validate_from(provider)
+          # Initialize new user from provider information
+          def initialize_from(provider)
             provider = provider.to_sym
             @provider = Config.send(provider)
             @user_hash = @provider.get_user_hash
@@ -101,11 +97,6 @@ module Sorcery
 
             user = user_class.new(attrs)
             user.send(config.authentications_class.to_s.downcase.pluralize).build(config.provider_uid_attribute_name => @user_hash[:uid], config.provider_attribute_name => provider)
-
-            session[:incomplete_user] = {
-              :provider => {config.provider_uid_attribute_name => @user_hash[:uid], config.provider_attribute_name => provider},
-              :user_hash => attrs
-            } unless user.save
 
             return user
           end
