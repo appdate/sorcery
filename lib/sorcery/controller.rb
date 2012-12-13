@@ -2,6 +2,7 @@ module Sorcery
   module Controller
     def self.included(klass)
       klass.class_eval do
+        extend ClassMethods
         include InstanceMethods
         Config.submodules.each do |mod|
           begin
@@ -13,6 +14,17 @@ module Sorcery
       end
       Config.update!
       Config.configure!
+    end
+
+    module ClassMethods
+      attr_accessor :_session_strategy
+      # This lets you define a strategy used throughout Sorcery
+      # for reseting the session in the Controller class.
+      #
+      # session_strategy :my_session_strategy
+      def session_strategy(method)
+        @_session_strategy = method
+      end
     end
 
     module InstanceMethods
@@ -32,11 +44,7 @@ module Sorcery
         @current_user = nil
         user = user_class.authenticate(*credentials)
         if user
-          old_session = session
-          reset_session # protect from session fixation attacks
-          old_session.to_hash.each_pair do |k,v|
-            session[k.to_sym] = v
-          end
+          session_strategy
           auto_login(user)
           after_login!(user, credentials)
           current_user
@@ -100,6 +108,10 @@ module Sorcery
         super # call the default behaviour which resets the session
       end
 
+      def session_strategy
+        send(self.class._session_strategy || :default_session_strategy)
+      end
+
       protected
 
       # Tries all available sources (methods) until one doesn't return false.
@@ -139,6 +151,13 @@ module Sorcery
         @user_class ||= Config.user_class.to_s.constantize
       end
 
+      def default_session_strategy
+        old_session = session
+        reset_session # protect from session fixation attacks
+        old_session.to_hash.each_pair do |k,v|
+          session[k.to_sym] = v
+        end
+      end
     end
 
     module Config
